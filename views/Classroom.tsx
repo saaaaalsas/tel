@@ -38,6 +38,13 @@ const Classroom: React.FC<ClassroomProps> = ({
   const [viewingAssignmentId, setViewingAssignmentId] = useState<string | null>(null);
   const [classCodeInput, setClassCodeInput] = useState('');
   
+  const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
+  const [newAssignmentTitle, setNewAssignmentTitle] = useState('');
+  const [newAssignmentDesc, setNewAssignmentDesc] = useState('');
+  const [newAssignmentFile, setNewAssignmentFile] = useState<File | null>(null);
+  const [newAssignmentDueDate, setNewAssignmentDueDate] = useState('');
+  const [targetCourseId, setTargetCourseId] = useState<string | null>(null);
+
   const isTeacher = user.role === UserRole.TEACHER || user.role === UserRole.GURU_ADMIN;
   const [newClassName, setNewClassName] = useState('');
 
@@ -52,7 +59,8 @@ const Classroom: React.FC<ClassroomProps> = ({
       teacherId: user.id,
       teacherName: user.name,
       description: 'Kelas Baru',
-      color: 'bg-teladan-blue'
+      color: 'bg-teladan-blue',
+      enrolledStudentIds: []
     };
     setCourses([...courses, newCourse]);
     setNewClassName('');
@@ -106,18 +114,43 @@ const Classroom: React.FC<ClassroomProps> = ({
   };
 
   const handleAddAssignment = (courseId: string) => {
-    const title = prompt("Judul Tugas:");
-    if (!title) return;
-    const hasFile = confirm("Apakah ingin melampirkan file tugas?");
+    setTargetCourseId(courseId);
+    setNewAssignmentDueDate(new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]);
+    setShowAddAssignmentModal(true);
+  };
+
+  const handleConfirmAddAssignment = async () => {
+    if (!newAssignmentTitle || !targetCourseId) return;
+
+    let fileData = '';
+    let fileName = '';
+
+    if (newAssignmentFile) {
+      fileName = newAssignmentFile.name;
+      fileData = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(newAssignmentFile);
+      });
+    }
+
     const newAssignment: Assignment = {
       id: Date.now().toString(),
-      courseId,
-      title,
-      description: hasFile ? 'Tugas dengan lampiran file. Silakan unduh materi di kelas.' : 'Silakan kerjakan instruksi yang diberikan di kelas.',
-      dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-      totalPoints: 100
+      courseId: targetCourseId,
+      title: newAssignmentTitle,
+      description: newAssignmentDesc || (fileName ? 'Tugas dengan lampiran file.' : 'Silakan kerjakan instruksi yang diberikan.'),
+      dueDate: newAssignmentDueDate,
+      totalPoints: 100,
+      fileName,
+      fileData
     };
+
     setAssignments([...assignments, newAssignment]);
+    setShowAddAssignmentModal(false);
+    setNewAssignmentTitle('');
+    setNewAssignmentDesc('');
+    setNewAssignmentFile(null);
+    setTargetCourseId(null);
   };
 
   const handleSubmitTask = (assignmentId: string) => {
@@ -176,7 +209,7 @@ const Classroom: React.FC<ClassroomProps> = ({
   };
 
   const userCourses = courses.filter(c => {
-    if (user.role === UserRole.TEACHER) return c.teacherId === user.id;
+    if (user.role === UserRole.TEACHER || user.role === UserRole.GURU_ADMIN) return c.teacherId === user.id;
     if (user.role === UserRole.STUDENT) return c.enrolledStudentIds?.includes(user.id);
     return true;
   });
@@ -260,6 +293,17 @@ const Classroom: React.FC<ClassroomProps> = ({
                     <div className="flex-1">
                       <h4 className="text-lg md:text-xl font-semibold mb-1">{task.title}</h4>
                       <p className="text-slate-500 text-xs md:text-sm mb-4">{task.description}</p>
+                      
+                      {task.fileName && task.fileData && (
+                        <button 
+                          onClick={() => handleDownloadFile(task.fileName!, task.fileData!)}
+                          className="flex items-center gap-2 text-teladan-blue font-semibold text-xs md:text-sm mb-4 hover:underline"
+                        >
+                          <iconify-icon icon="solar:file-download-bold-duotone" width="18"></iconify-icon>
+                          Unduh Materi: {task.fileName}
+                        </button>
+                      )}
+
                       <div className="flex flex-wrap gap-2 md:gap-4 items-center">
                         <span className="flex items-center gap-1 text-[9px] md:text-xs font-semibold text-slate-400 uppercase bg-slate-50 dark:bg-slate-700 px-2 md:px-3 py-1 rounded-full">
                           <iconify-icon icon="solar:calendar-date-bold-duotone"></iconify-icon>
@@ -312,6 +356,15 @@ const Classroom: React.FC<ClassroomProps> = ({
                    <div>
                      <p className="text-[10px] text-slate-400 font-semibold uppercase">Tugas Aktif</p>
                      <p className="font-semibold text-sm md:text-base">{courseAssignments.length} Tugas</p>
+                   </div>
+                 </div>
+                 <div className="flex items-center gap-4">
+                   <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                     <iconify-icon icon="solar:users-group-rounded-bold-duotone" width="20"></iconify-icon>
+                   </div>
+                   <div>
+                     <p className="text-[10px] text-slate-400 font-semibold uppercase">Jumlah Murid</p>
+                     <p className="font-semibold text-sm md:text-base">{(selectedCourse.enrolledStudentIds?.length || 0)} Murid</p>
                    </div>
                  </div>
                </div>
@@ -405,11 +458,21 @@ const Classroom: React.FC<ClassroomProps> = ({
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700">
                 <span className="text-[10px] md:text-xs font-semibold uppercase tracking-widest text-slate-400">Kode: {course.code}</span>
-                <div className="flex -space-x-2">
-                  {[1,2,3].map(i => (
-                    <img key={i} src={`https://picsum.photos/seed/${course.id+i}/100`} className="w-6 h-6 md:w-8 md:h-8 rounded-full border-2 border-white dark:border-slate-800" />
-                  ))}
-                  <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-100 dark:bg-slate-700 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[8px] md:text-[10px] font-semibold">+21</div>
+                <div className="flex items-center gap-2">
+                  {course.enrolledStudentIds && course.enrolledStudentIds.length > 0 ? (
+                    <div className="flex -space-x-2">
+                      {course.enrolledStudentIds.slice(0, 3).map(studentId => (
+                        <img key={studentId} src={`https://picsum.photos/seed/${studentId}/100`} className="w-6 h-6 md:w-8 md:h-8 rounded-full border-2 border-white dark:border-slate-800" />
+                      ))}
+                      {course.enrolledStudentIds.length > 3 && (
+                        <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-100 dark:bg-slate-700 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[8px] md:text-[10px] font-semibold">
+                          +{course.enrolledStudentIds.length - 3}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-[9px] md:text-[10px] font-semibold text-slate-300 uppercase tracking-wider">0 Murid</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -458,6 +521,96 @@ const Classroom: React.FC<ClassroomProps> = ({
         </div>
       )}
 
+      {showAddAssignmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowAddAssignmentModal(false)}></div>
+           <div className="relative bg-white dark:bg-slate-800 w-full max-w-lg p-8 rounded-[2.5rem] shadow-2xl animate-fade-slide max-h-[90vh] overflow-y-auto">
+              <h3 className="text-2xl font-semibold mb-2">Buat Tugas Baru</h3>
+              <p className="text-slate-500 text-sm mb-6">Berikan instruksi dan lampiran materi jika diperlukan.</p>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Judul Tugas</label>
+                  <input 
+                    type="text" 
+                    placeholder="Contoh: Tugas Matematika - Aljabar" 
+                    className="w-full bg-slate-50 dark:bg-slate-700 border-none rounded-2xl p-4 mt-2 outline-none focus:ring-2 ring-teladan-blue"
+                    value={newAssignmentTitle}
+                    onChange={(e) => setNewAssignmentTitle(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Deskripsi / Instruksi</label>
+                  <textarea 
+                    placeholder="Tuliskan instruksi pengerjaan tugas..." 
+                    className="w-full bg-slate-50 dark:bg-slate-700 border-none rounded-2xl p-4 mt-2 outline-none focus:ring-2 ring-teladan-blue min-h-[100px]"
+                    value={newAssignmentDesc}
+                    onChange={(e) => setNewAssignmentDesc(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Batas Waktu</label>
+                    <input 
+                      type="date" 
+                      className="w-full bg-slate-50 dark:bg-slate-700 border-none rounded-2xl p-4 mt-2 outline-none focus:ring-2 ring-teladan-blue"
+                      value={newAssignmentDueDate}
+                      onChange={(e) => setNewAssignmentDueDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Poin Maksimal</label>
+                    <input 
+                      type="number" 
+                      defaultValue={100}
+                      className="w-full bg-slate-50 dark:bg-slate-700 border-none rounded-2xl p-4 mt-2 outline-none focus:ring-2 ring-teladan-blue"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Lampiran Materi</label>
+                  <div className="mt-2 flex items-center gap-4">
+                    <label className="flex-1 cursor-pointer">
+                      <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-6 flex flex-col items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <iconify-icon icon="solar:upload-bold-duotone" width="32" className="text-slate-300 mb-2"></iconify-icon>
+                        <span className="text-sm font-semibold text-slate-500">
+                          {newAssignmentFile ? newAssignmentFile.name : 'Pilih file materi (Semua format didukung)'}
+                        </span>
+                      </div>
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        onChange={(e) => setNewAssignmentFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {newAssignmentFile && (
+                      <button 
+                        onClick={() => setNewAssignmentFile(null)}
+                        className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-500 flex items-center justify-center"
+                      >
+                        <iconify-icon icon="solar:trash-bin-minimalistic-bold-duotone" width="24"></iconify-icon>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button onClick={() => setShowAddAssignmentModal(false)} className="flex-1 py-4 rounded-2xl font-semibold text-slate-500">Batal</button>
+                  <button 
+                    onClick={handleConfirmAddAssignment} 
+                    className="flex-1 py-4 bg-teladan-blue text-white rounded-2xl font-semibold shadow-lg shadow-blue-100 dark:shadow-none"
+                  >
+                    Buat Tugas
+                  </button>
+                </div>
+              </div>
+           </div>
+        </div>
+      )}
+
       {showSubmissionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowSubmissionModal(false)}></div>
@@ -483,7 +636,7 @@ const Classroom: React.FC<ClassroomProps> = ({
                       <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-6 flex flex-col items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                         <iconify-icon icon="solar:upload-bold-duotone" width="32" className="text-slate-300 mb-2"></iconify-icon>
                         <span className="text-sm font-semibold text-slate-500">
-                          {selectedFile ? selectedFile.name : 'Pilih file (PDF, DOC, JPG, dll)'}
+                          {selectedFile ? selectedFile.name : 'Pilih file (Semua format didukung)'}
                         </span>
                       </div>
                       <input 

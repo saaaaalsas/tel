@@ -108,6 +108,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   const filteredEvents = academicEvents.filter(e => {
     if (!activeFilters.includes('akademik')) return false;
+    if (activeLevel && e.level !== activeLevel) return false;
     return true;
   });
 
@@ -269,7 +270,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                   onClick={() => setActiveLevel(activeLevel === lvl ? null : lvl)}
                   className={`px-4 md:px-6 py-2 md:py-3 rounded-xl md:rounded-2xl font-semibold text-xs md:text-sm transition-all ${
                     activeLevel === lvl 
-                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100 dark:shadow-none' 
+                      ? `${getLevelColor(lvl)} text-white shadow-lg shadow-blue-100 dark:shadow-none` 
                       : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                   }`}
                 >

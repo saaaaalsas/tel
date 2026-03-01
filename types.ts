@@ -71,6 +71,8 @@ export interface Assignment {
   description: string;
   dueDate: string;
   totalPoints: number;
+  fileName?: string;
+  fileData?: string; // Base64 string
 }
 
 export interface Submission {

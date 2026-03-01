@@ -135,6 +135,32 @@ const App: React.FC = () => {
     return true;
   });
 
+  const userAssignments = assignments.filter(a => {
+    const course = courses.find(c => c.id === a.courseId);
+    if (!course) return false;
+    if (currentUser?.role === UserRole.TEACHER || currentUser?.role === UserRole.GURU_ADMIN) {
+      return course.teacherId === currentUser.id;
+    }
+    if (currentUser?.role === UserRole.STUDENT) {
+      return course.enrolledStudentIds?.includes(currentUser.id);
+    }
+    return true;
+  });
+
+  const userSubmissions = submissions.filter(s => {
+    const assignment = assignments.find(a => a.id === s.assignmentId);
+    if (!assignment) return false;
+    const course = courses.find(c => c.id === assignment.courseId);
+    if (!course) return false;
+    if (currentUser?.role === UserRole.TEACHER || currentUser?.role === UserRole.GURU_ADMIN) {
+      return course.teacherId === currentUser.id;
+    }
+    if (currentUser?.role === UserRole.STUDENT) {
+      return s.studentId === currentUser.id;
+    }
+    return true;
+  });
+
   return (
     <div className={`flex flex-col md:flex-row h-screen w-full overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'dark bg-teladan-navy text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       <Sidebar 
@@ -175,9 +201,9 @@ const App: React.FC = () => {
           <Dashboard 
             user={currentUser} 
             courses={userCourses} 
-            assignments={assignments} 
+            assignments={userAssignments} 
             bookings={bookings}
-            submissions={submissions}
+            submissions={userSubmissions}
             users={users}
             onSelectCourse={(course) => {
               setSelectedCourse(course);
