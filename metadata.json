@@ -1,0 +1,8 @@
+{
+  "name": "tester",
+  "description": "Integrated school management system for SMAN 3 Jakarta combining Classroom and Calendar features for seamless academic monitoring.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
